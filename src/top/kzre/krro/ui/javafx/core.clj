@@ -10,6 +10,7 @@
     [top.kzre.krro.core.mode :as mode]
     [top.kzre.krro.core.project :as proj]
     [top.kzre.krro.core.ui.protocol :as ui]
+    [top.kzre.krro.core.variable :as variable]
     [top.kzre.krro.core.util.re-export :refer [re-export]]
     [top.kzre.krro.core.window :as win]
     [top.kzre.krro.ui.core.protocol :as proto]
@@ -30,6 +31,9 @@
    [javafx.scene.layout BorderPane]
    [javafx.stage Stage]))
 
+(when variable/*debug*
+  (System/setProperty "prism.verbose" "true"))
+
 (re-export
   [top.kzre.krro.ui.javafx.util
    :refer [throttled debounced]])
@@ -42,7 +46,8 @@
    init-fn       - (fn [node props frame] ...) 返回清理函数，每次 props 变化时调用。
                   首次挂载时也会调用，用于初始化组件内部运行时。
    返回一个组件函数，可注册为虚拟 DOM 标签。"
-  [watched-props create-fn init-fn & {:keys [bind]}]
+  [watched-props create-fn init-fn
+   & {:keys [bind dispose-fn]}]
   (fn [props frame]
     (let [node (create-fn)                       ;; 创建根节点（仅一次）
           cleanup-atom (atom (fn []))
@@ -60,7 +65,10 @@
                                     (select-keys new-props watched-props))
                           (@cleanup-atom)           ;; 清理旧运行时
                           (update old-props new-props frame)))) ;; 重新初始化
-         :on-unmount (fn [_ _] (@cleanup-atom))}
+         :on-unmount (fn [_ _]
+                       (@cleanup-atom)
+                       (when dispose-fn
+                         (dispose-fn node)))}
         (tags/make-binding props bind)))))
 
 (defn- key-event->key-desc
