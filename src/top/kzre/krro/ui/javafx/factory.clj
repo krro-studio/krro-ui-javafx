@@ -59,11 +59,7 @@
 
   (let [grow (:grow new-props)]
     (when (not= grow (:grow old-props) )
-      (if grow
-        (do (HBox/setHgrow element Priority/ALWAYS)
-            (VBox/setVgrow element Priority/ALWAYS))
-        (do (HBox/setHgrow element Priority/NEVER)
-            (VBox/setVgrow element Priority/NEVER)))))
+      (javafx.util/set-grow element grow)))
 
 
   ;; 样式表：仅对 Parent 类型节点生效

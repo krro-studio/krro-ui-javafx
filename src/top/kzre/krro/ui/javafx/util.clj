@@ -1,15 +1,23 @@
 (ns top.kzre.krro.ui.javafx.util
   (:import
-    [javafx.animation PauseTransition]
-    (javafx.event EventHandler)
-    (javafx.geometry Orientation Pos)
-    [javafx.util Duration]))
+   [javafx.animation PauseTransition]
+   (javafx.event EventHandler)
+   (javafx.geometry Orientation Pos)
+   [javafx.scene.layout HBox Priority VBox]
+   [javafx.util Duration]))
 
 
 (defn kw->orientation [kw]
   (case kw
     :horizontal Orientation/HORIZONTAL
     :vertical Orientation/VERTICAL))
+
+(defn set-grow [box grow]
+  (if grow
+    (do (HBox/setHgrow box Priority/ALWAYS)
+        (VBox/setVgrow box Priority/ALWAYS))
+    (do (HBox/setHgrow box Priority/NEVER)
+        (VBox/setVgrow box Priority/NEVER))))
 
 (defn kw->pos [kw]
   (case kw
