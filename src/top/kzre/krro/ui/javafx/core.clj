@@ -22,14 +22,14 @@
     [top.kzre.krro.ui.javafx.util]
     [top.kzre.krro.ui.javafx.window])
   (:import
-   (java.util Collection)
-   [javafx.application Platform]
-   (javafx.event EventHandler)
-   [javafx.scene Scene]
-   [javafx.scene.control ChoiceDialog Label TextInputDialog]
-   (javafx.scene.input KeyEvent)
-   [javafx.scene.layout BorderPane]
-   [javafx.stage Stage]))
+    (java.util Collection)
+    [javafx.application Platform]
+    (javafx.event EventHandler)
+    [javafx.scene Scene]
+    [javafx.scene.control ChoiceDialog Label TextInputDialog]
+    (javafx.scene.input KeyEvent)
+    [javafx.scene.layout BorderPane]
+    [javafx.stage Stage StageStyle]))
 
 (when variable/*debug*
   (System/setProperty "prism.verbose" "true"))
@@ -199,6 +199,7 @@
   (let [root (BorderPane.)
         scene (Scene. root (double width) (double height))
         stage (Stage.)]
+    ;(.initStyle stage StageStyle/UNDECORATED)
     (.setOnKeyPressed scene
                       (reify EventHandler
                         (handle [_ e]
