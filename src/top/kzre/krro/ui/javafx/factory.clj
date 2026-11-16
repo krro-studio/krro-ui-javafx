@@ -63,25 +63,30 @@
 
 
   ;; 样式表：仅对 Parent 类型节点生效
-  (when (and (instance? Parent element)
-             (not= (:stylesheet old-props) (:stylesheet new-props)))
-    (let [styles (.getStylesheets element)
-          new-styles (:stylesheet new-props)]
-      (.clear styles)
-      (when new-styles
-        (let [stylesheets (if (vector? new-styles) new-styles [new-styles])]
-          (doseq [s stylesheets]
-            (try
-              (if (and (string? s) (str/ends-with? s ".edn"))
-                (let [edn (stylesheet/load-stylesheet-edn s)
-                      compiled (javafx.stylesheet/compile-stylesheet edn)
-                      temp-file (doto (File/createTempFile "krr-style-" ".css")
-                                  (.deleteOnExit)
-                                  (spit compiled))]
-                  (.add styles (.toString (.toURI temp-file))))
-                (.add styles s))
-              (catch Exception e
-                (log/error e "Failed to load stylesheet" s))))))))
+  (when  (not= (:stylesheet old-props) (:stylesheet new-props))
+    (if (instance? Parent element)
+      (let [styles (.getStylesheets element)
+            new-styles (:stylesheet new-props)]
+        (.clear styles)
+        (when new-styles
+          (let [stylesheets (if (vector? new-styles) new-styles [new-styles])]
+            (doseq [s stylesheets]
+              (try
+                (if (and (string? s) (str/ends-with? s ".edn"))
+                  (let [edn (stylesheet/load-stylesheet-edn s)
+                        compiled (javafx.stylesheet/compile-stylesheet edn)
+                        temp-file (doto (File/createTempFile "krr-style-" ".css")
+                                    (.deleteOnExit)
+                                    (spit compiled))]
+                    (.add styles (.toString (.toURI temp-file))))
+                  (.add styles s))
+                (catch Exception e
+                  (log/error e "Failed to load stylesheet" s)))))))
+     (log/warn
+       "should not mark stylesheet on a node not Parent."
+       {:element element
+        :old-props old-props
+        :new-props new-props})))
 
   ;; 可见性和禁用
   (when (not= (:visible old-props) (:visible new-props))
