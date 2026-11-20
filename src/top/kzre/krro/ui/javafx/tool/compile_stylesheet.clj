@@ -12,15 +12,31 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- load-and-merge
-  "加载所有 src-files 中的 EDN 文件，每个文件必须是向量，合并为一个向量。"
+  "加载所有 src-files，并以各自文件为 base 展开其 import，然后合并为一个向量。
+
+   跨文件共享 loaded 集合，保证同一被引文件（无论通过相对路径还是绝对路径）
+   在整批源文件中只展开一次；in-progress 用顶层文件自身的 URI 初始化，
+   以便检测文件内部直接/间接 import 自身。"
   [src-files]
-  (mapcat (fn [path]
-            (let [edn (stylesheet/load-stylesheet-edn path)]
-              (if (vector? edn)
-                edn
+  (first
+    (reduce
+      (fn [[acc loaded] path]
+        (let [base-uri (stylesheet/->uri path)]
+          (if (contains? loaded base-uri)
+            ;; 已被其它文件 import 过，直接跳过
+            [acc loaded]
+            (let [edn (stylesheet/load-stylesheet-edn base-uri)]
+              (when-not (vector? edn)
                 (throw (ex-info "Invalid stylesheet: expected vector"
-                                {:path path})))))
-          src-files))
+                                {:path path})))
+              (let [[expanded loaded']
+                    (stylesheet/expand-imports
+                      edn {:base-uri    base-uri
+                           :loaded      loaded
+                           :in-progress #{base-uri}})]
+                [(into acc expanded) (conj loaded' base-uri)])))))
+      [[] #{}]
+      src-files)))
 
 (defn compile-stylesheet
   "tools.build 风格的纯 edn 输入，方便 deps.edn 编译集成。
