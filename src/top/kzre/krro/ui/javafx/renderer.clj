@@ -2,27 +2,30 @@
   "Krrō 内核渲染协议 (krro.core.ui) 的 JavaFX 实现。
    利用 JavaFX 节点树直接匹配窗口布局，无需额外状态。"
   (:require
-    [taoensso.timbre :as log]
-    [top.kzre.krro.core.frame :as frame]
-    [top.kzre.krro.core.hook :as hook]
-    [top.kzre.krro.core.ui.protocol :as ui]
-    [top.kzre.krro.core.window :as win :refer [native-object]]
-    [top.kzre.krro.core.window-layout :as window-layout]
-    [top.kzre.krro.ui.core.bind :as bind]
-    [top.kzre.krro.ui.core.core :as krro.ui]
-    [top.kzre.krro.ui.core.diff :as diff]
-    [top.kzre.krro.ui.core.vnode :as vnode]
-    [top.kzre.krro.ui.javafx.util :as javafx.util]
-    [top.kzre.krro.core.core :as krro])
+   [taoensso.timbre :as log]
+   [top.kzre.krro.core.core :as krro]
+   [top.kzre.krro.core.frame :as frame]
+   [top.kzre.krro.core.hook :as hook]
+   [top.kzre.krro.core.ui.protocol :as ui]
+   [top.kzre.krro.core.window :as win :refer [native-object]]
+   [top.kzre.krro.core.window-layout :as window-layout]
+   [top.kzre.krro.ui.core.bind :as bind]
+   [top.kzre.krro.ui.core.core :as krro.ui]
+   [top.kzre.krro.ui.core.diff :as diff]
+   [top.kzre.krro.ui.core.vnode :as vnode]
+   [top.kzre.krro.ui.javafx.util :as javafx.util]
+   [top.kzre.krro.ui.javafx.window :as javafx.window])
   (:import
-    (java.util Collection)
-    (javafx.application Platform)
-    (javafx.beans.value ChangeListener)
-    (javafx.event EventHandler)
-    (javafx.scene Node Parent)
-    (javafx.scene.control SplitPane SplitPane$Divider)
-    (javafx.scene.input MouseEvent)
-    (javafx.scene.layout BorderPane StackPane)))
+   (java.util Collection)
+   (javafx.application Platform)
+   (javafx.beans.value ChangeListener)
+   (javafx.event EventHandler)
+   (javafx.scene Node Parent)
+   (javafx.scene.control SplitPane SplitPane$Divider)
+   (javafx.scene.input MouseEvent)
+   (javafx.scene.layout BorderPane StackPane)
+   (javafx.stage Stage)
+   (top.kzre.krro.ui.javafx.layout WindowPane)))
 
 (defonce ^:private frame-vnode-key    ::frame-vnode)
 (defonce ^:private frame-bind-ctx-key ::bind-ctx)
@@ -33,7 +36,7 @@
 (def ^:private pos-eps              1e-6)
 
 ;; ── 活动 frame 高亮样式 ───────────────────────────────
-(def ^:private frame-border-width 2)
+(def ^:private frame-border-width (int (max (/ WindowPane/WINDOW_MARGIN 4) 1)))
 (def ^:private frame-border-selected-color   "#4a90d9")
 (def ^:private frame-border-unselected-color "transparent")
 
@@ -168,6 +171,7 @@
              (when-not (= current-items new-children)
                (.clear items)
                (.addAll items ^Collection new-children)))
+           ;; TODO 子定义组件
            ;; 再挂监听（此时 dividers 已就绪）
            (attach-divider-listeners! new-split window path)
            ;; 数据 -> 视图：值不同才写，避免把用户拖动弹回去
@@ -180,12 +184,11 @@
     (let [native-win (win/native-window window)
           layout (win/layout-desc window)
           stage (native-object native-win)
-          scene (.getScene stage)
-          ^BorderPane root (.getRoot scene)
-          content (.getCenter ^BorderPane root)]
+          ^BorderPane border (javafx.window/stage-root stage)
+          content (.getCenter ^BorderPane border)]
       (log/debug "Syncing window layout, layout:" layout)
       (let [new-content (diff! layout content [])]
-        (.setCenter ^BorderPane root new-content)
+        (.setCenter ^BorderPane border new-content)
         ;; 兜底刷新：初始化、结构变化后保证样式正确
         ;; （hook 只在 current-frame 变化时触发，覆盖不到初始创建等场景）
         (refresh-frame-styles! window)
@@ -199,11 +202,14 @@
       (fn []
         (let [win (frame/window frame)
               content (window-layout-diff! win)]
-          (log/debug "Rendering frame" (frame/frame-id frame) "into content node" content)
+          (log/debug "Rendering frame" (frame/frame-id frame) "into content node" content )
           (ensure-frame-bind-ctx frame)
           (let [frame-container (get @frame-containers (frame/frame-id frame))
                 new-vnode (vnode/edn->vnode ui-desc)
                 old-vnode (frame/param frame frame-vnode-key)]
+            (log/debug "Diff vnode"
+                       "old = " old-vnode
+                       "\n new = " new-vnode)
             (frame/set-param! frame frame-vnode-key
                               (diff/diff! factory node-renderer frame frame-container old-vnode new-vnode)))))))
 

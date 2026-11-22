@@ -1,8 +1,11 @@
 (ns top.kzre.krro.ui.javafx.util
+  (:require
+   [clojure.string :as str])
   (:import
    [javafx.animation PauseTransition]
    (javafx.event EventHandler)
    (javafx.geometry Orientation Pos)
+   [javafx.scene.input KeyCode KeyEvent]
    [javafx.scene.layout HBox Priority VBox]
    [javafx.util Duration]))
 
@@ -34,6 +37,49 @@
     :baseline-center Pos/BASELINE_CENTER
     :baseline-right Pos/BASELINE_RIGHT
     Pos/CENTER)) ; 默认居中
+
+
+(defn key-event->kw
+  "将 JavaFX KeyEvent 转换为 Emacs 风格的键描述字符串，例如 'C-x', 'C-S-d', 'RET'。"
+  [^KeyEvent e]
+  (let [code (.getCode e)
+        modifiers (set
+                    (cond-> []
+                            (.isControlDown e) (conj "C")
+                            (.isShiftDown e)   (conj "S")
+                            (.isAltDown e)     (conj "M")
+                            (.isMetaDown e)    (conj "s"))) ; Windows Key / Command
+        modifier-str (if (seq modifiers)
+                       (str (str/join "-" (sort modifiers)) "-")
+                       "")
+        key-name (case code
+                   KeyCode/ENTER "RET"
+                   KeyCode/SPACE "SPC"
+                   KeyCode/TAB "TAB"
+                   KeyCode/ESCAPE "ESC"
+                   KeyCode/BACK_SPACE "DEL"
+                   KeyCode/DELETE "DEL"
+                   KeyCode/UP "UP"
+                   KeyCode/DOWN "DOWN"
+                   KeyCode/LEFT "LEFT"
+                   KeyCode/RIGHT "RIGHT"
+                   KeyCode/F1 "f1"
+                   KeyCode/F2 "f2"
+                   KeyCode/F3 "f3"
+                   KeyCode/F4 "f4"
+                   KeyCode/F5 "f5"
+                   KeyCode/F6 "f6"
+                   KeyCode/F7 "f7"
+                   KeyCode/F8 "f8"
+                   KeyCode/F9 "f9"
+                   KeyCode/F10 "f10"
+                   KeyCode/F11 "f11"
+                   KeyCode/F12 "f12"
+                   (let [ch (str/lower-case (.getText e))]
+                     (if (and ch (not (str/blank? ch)))
+                       ch
+                       (.getName code))))]
+    (keyword (str modifier-str key-name))))
 
 
 (defn debounced
