@@ -100,11 +100,14 @@
     props))
 
 ;; ── 布局容器 ──────────────────────────────────────────
-(defmethod create-element :block [_ {:keys [direction]
-                                     :or {direction :horizontal}
+(defmethod create-element :block [_ {:keys [direction
+                                            grow]
+                                     :or {direction :horizontal
+                                          grow false}
                                      :as props} _]
   (let [box (if (= direction :vertical) (VBox.) (HBox.))]
     (build-events! box props)
+    (javafx.util/set-grow box grow)
     {:node box}))
 
 (defmethod create-element :split [_ props _]
@@ -113,7 +116,13 @@
              (javafx.util/kw->orientation (:direction props :horizontal))))})
 
 
-(defmethod create-element :scroll [_ _ _] {:node (ScrollPane.)})
+(defmethod create-element :scroll [_ _ _]
+  (let [pane (ScrollPane.)]
+    ;; 和内容适应
+    (.setFitToWidth pane true)
+    (.setFitToHeight pane true)
+    {:node pane}))
+
 (defmethod create-element :tool-bar [_ _ _] {:node (ToolBar.)})
 (defmethod create-element :menu-bar [_ _ _] {:node (MenuBar.)})
 (defmethod create-element :menu [_ props _] {:node (Menu. (or (:content props) ""))})
