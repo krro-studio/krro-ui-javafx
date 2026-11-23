@@ -5,18 +5,42 @@
    保留对 Krrō 命令系统的支持：若事件属性值为关键字，则自动作为命令 ID 执行。
    双向绑定通过 getter（单向同步）和 setter/on-change（用户操作写回）实现，
    不再使用 ObservableValue 自动监听，确保单向数据流。"
-  (:require [top.kzre.krro.core.core :as krro]
-            [top.kzre.krro.ui.javafx.event :as event]
-            [top.kzre.krro.ui.javafx.util :as javafx.util])
-  (:import (java.util Collection)
-           (javafx.scene.control Button CheckBox ComboBox Hyperlink Label Menu MenuBar MenuItem ProgressBar RadioButton ScrollPane Separator SeparatorMenuItem Slider
-                                 SplitPane SplitPane$Divider TextArea TextField ToolBar)
-           (javafx.scene.image ImageView)
-           (javafx.scene.layout HBox VBox)))
+  (:require
+   [top.kzre.krro.core.core :as krro]
+   [top.kzre.krro.ui.javafx.event :as event]
+   [top.kzre.krro.ui.javafx.util :as javafx.util]
+   [taoensso.timbre :as log]
+   [top.kzre.krro.core.window :as win])
+  (:import
+    (java.util Collection)
+    (javafx.scene Node)
+    (javafx.scene.control
+      Button
+      CheckBox
+      ComboBox
+      Hyperlink
+      Label
+      Menu
+      MenuBar
+      MenuItem
+      ProgressBar
+      RadioButton
+      ScrollPane
+      Separator
+      SeparatorMenuItem
+      Slider
+      SplitPane
+      TextArea
+      TextField
+      ToolBar)
+    (javafx.scene.image ImageView)
+    (javafx.scene.layout HBox VBox)
+    (top.kzre.krro.ui.javafx JavaFXUtils)))
+
 
 (defmulti create-element (fn [tag _props _frame] tag))
 
-(defn- target-key [props]
+(defn target-key [props]
   (or (:key props) (:id props) "unknown"))
 
 (defn- resolve-action
@@ -36,6 +60,19 @@
       (fn [_] (apply krro/exe-command! cmd-id args)))
 
     :else nil))
+
+(defn- resolve-events [props]
+  (reduce
+    (fn [acc k]
+      (update acc k resolve-action))
+    props
+    (event/events)))
+
+(defn- build-events! [^Node node props]
+  (let [tk (target-key props)]
+    (event/bind-events!
+      node
+      (resolve-events props) tk)))
 
 
 (defn make-binding
@@ -64,9 +101,11 @@
 
 ;; ── 布局容器 ──────────────────────────────────────────
 (defmethod create-element :block [_ {:keys [direction]
-                                     :or {direction :horizontal}} _]
-
-  {:node (if (= direction :vertical) (VBox.) (HBox.))})
+                                     :or {direction :horizontal}
+                                     :as props} _]
+  (let [box (if (= direction :vertical) (VBox.) (HBox.))]
+    (build-events! box props)
+    {:node box}))
 
 (defmethod create-element :split [_ props _]
   {:node (doto (SplitPane.)
@@ -87,55 +126,41 @@
 
 ;; ── 基础控件 ──────────────────────────────────────────
 (defmethod create-element :text [_ props _]
-  (let [lbl (Label. (or (:content props) ""))
-        tk (target-key props)]
-    (event/bind-click! lbl (update props :on-click resolve-action) tk)
-    (event/bind-mouse-enter-leave! lbl props tk)
+  (let [lbl (Label. (or (:content props) ""))]
+    (build-events! lbl props)
     (merge
       {:node lbl}
       (make-binding props (fn [n v] (.setText ^Label n (str v)))))))
 
 (defmethod create-element :button [_ props _]
-  (let [btn (Button. (or (:content props) ""))
-        tk (target-key props)]
-    (event/bind-click! btn (update props :on-click resolve-action) tk)
-    (event/bind-action! btn (update props :on-action resolve-action) tk)
-    (event/bind-mouse-enter-leave! btn props tk)
+  (let [btn (Button. (or (:content props) ""))]
+    (build-events! btn props)
     {:node btn}))
 
 (defmethod create-element :input [_ props f]
   (let [props' (polyfill-action props)
-        tf (TextField. (or (:content props') ""))
-        tk (target-key props')]
-    (event/bind-change-action! tf props' tk)   ;; 用户按回车或失去焦点时触发
-    (event/bind-key! tf props' tk)
-    (event/bind-focus! tf props' tk)
+        tf (TextField. (or (:content props') ""))]
+    (build-events! tf props')
     (merge {:node tf}
            (make-binding props' (fn [n v] (.setText ^TextField n (str v)))))))
 
 (defmethod create-element :text-area [_ props f]
   (let [props' (polyfill-action props)
-        ta (TextArea. (or (:content props') ""))
-        tk (target-key props')]
-    (event/bind-change-action! ta props' tk)
-    (event/bind-key! ta props' tk)
-    (event/bind-focus! ta props' tk)
+        ta (TextArea. (or (:content props') ""))]
+    (build-events! ta props')
     (merge {:node ta}
            (make-binding props' (fn [n v] (.setText ^TextArea n (str v))))
       )))
 
 (defmethod create-element :check-box [_ props f]
   (let [props' (polyfill-action props)
-        cb (CheckBox. (or (:content props') ""))
-        tk (target-key props')]
+        cb (CheckBox. (or (:content props') ""))]
     ;; 当不存在绑定时候，使用checked?属性.
     (when-not (and (:getter props')
                    (:bind props')
                    (:bindf props'))
       (when-let [v (:checked props')] (.setSelected cb (boolean v))))
-    (event/bind-change-action! cb props' tk)   ;; 用户点击复选框触发
-    (event/bind-key! cb props' tk)
-    (event/bind-mouse-enter-leave! cb props' tk)
+    (build-events! cb props')
     (merge {:node cb}
       (make-binding props'
                          (fn [c v]
@@ -147,8 +172,7 @@
         tk (target-key props')]
     (when-let [items (:items props')] (.addAll ^Collection (.getItems cb) items))
     (when-let [val (:value props')] (.setValue cb val))
-    (event/bind-change-action! cb props' tk)   ;; 用户选择新项时触发
-    (event/bind-key! cb props' tk)
+    (build-events! tk props')
     (merge {:node cb}
            (make-binding props' (fn [c v]
                                   (.setValue ^ComboBox c v))))))
@@ -156,9 +180,8 @@
 (defmethod create-element :slider [_ props f]
   (let [props' (polyfill-action props)
         sl (Slider. (double (or (:min props') 0)) (double (or (:max props') 100)) (double (or (:value props') 50)))
-        tk (target-key props')]
-    (event/bind-change-action! sl props' tk)   ;; 用户拖动滑块触发
-    (event/bind-key! sl props' tk)
+        ]
+    (build-events! sl props')
     (merge {:node sl}
       (make-binding props' (fn [s v] (.setValue ^Slider s (double v)))))))
 
@@ -168,7 +191,24 @@
 (defmethod create-element :separator [_ _ _] {:node (Separator.)})
 
 
-(defmethod create-element :image [_ props _] {:node (ImageView. ^String (or (:src props) ""))})
+(defmethod create-element :image
+  [_
+   {:keys [src width height]
+    :as props} _]
+  (let [view (ImageView.)]
+    (when-not src
+      (log/warn "image src is nil"))
+    (JavaFXUtils/imageViewSetSrc view src)
+    (when width
+      (.setFitWidth view (double width)))
+    (when height
+      (.setFitWidth view (double height)))
+    (if (and width height)
+      (.setPreserveRatio view false)
+      (.setPreserveRatio view true))
+
+    (build-events! view props)
+    {:node view}))
 
 
 (defmethod create-element :radio-button [_ props f]
@@ -176,15 +216,13 @@
         rb (RadioButton. (or (:content props') ""))
         tk (target-key props')]
     (when-let [v (:checked props')] (.setSelected rb (boolean v)))
-    (event/bind-change-action! rb props' tk)
-    (event/bind-key! rb props' tk)
+    (build-events! rb props)
     (merge {:node rb}
            (make-binding props' (fn [r v] (.setSelected ^RadioButton r (boolean v))))
            )))
 
 (defmethod create-element :link [_ props _]
-  (let [hl (Hyperlink. (or (:content props) ""))
-        tk (target-key props)]
-    (event/bind-click! hl (update props :on-click resolve-action) tk)
-    (event/bind-action! hl (update props :on-action resolve-action) tk)
+  (let [hl (Hyperlink. (or (:content props) ""))]
+    (build-events! hl props)
     {:node hl}))
+

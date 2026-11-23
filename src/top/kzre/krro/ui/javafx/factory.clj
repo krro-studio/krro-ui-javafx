@@ -8,30 +8,30 @@
    [top.kzre.krro.ui.core.bind :as bind]
    [top.kzre.krro.ui.core.protocol :as proto]
    [top.kzre.krro.ui.core.spec.stylesheet :as stylesheet]
-   [top.kzre.krro.ui.javafx.drag :as drag]
    [top.kzre.krro.ui.javafx.renderer :as renderer]
    [top.kzre.krro.ui.javafx.stylesheet :as javafx.stylesheet]
    [top.kzre.krro.ui.javafx.tags :as tags]
    [top.kzre.krro.ui.javafx.util :as javafx.util])
   (:import
-   (java.io File)
-   (java.net URI)
-   (java.util Collection)
-   (javafx.scene Node Parent)
-   (javafx.scene.control
-    Button
-    CheckBox
-    ComboBox
-    Hyperlink
-    Label
-    MenuItem
-    ProgressBar
-    RadioButton
-    Slider
-    TextArea
-    TextField)
-   [javafx.scene.image ImageView]
-   [javafx.scene.layout HBox VBox]))
+    (java.io File)
+    (java.net URI)
+    (java.util Collection)
+    (javafx.scene Node Parent)
+    (javafx.scene.control
+      Button
+      CheckBox
+      ComboBox
+      Hyperlink
+      Label
+      MenuItem
+      ProgressBar
+      RadioButton
+      Slider
+      TextArea
+      TextField)
+    (javafx.scene.image ImageView)
+    (javafx.scene.layout HBox VBox)
+    (top.kzre.krro.ui.javafx JavaFXUtils)))
 
 (defonce ^:private stylesheet-cache
          ;; canonical-uri -> {:mtime long-or-nil, :url string}
@@ -161,16 +161,6 @@
   (when (not= (:disabled old-props) (:disabled new-props))
     (.setDisable element (boolean (:disabled new-props))))
 
-  ;; 拖拽：先清理旧的，再设置新的
-  (when (not= (:drag-source old-props) (:drag-source new-props))
-    (drag/clear-drag-source! element))
-  (when (not= (:drag-target old-props) (:drag-target new-props))
-    (drag/clear-drag-target! element))
-  (when-let [ds (:drag-source new-props)]
-    (drag/setup-drag-source! element ds))
-  (when-let [dt (:drag-target new-props)]
-    (drag/setup-drag-target! element dt))
-
   ;; 组件特定
   (cond
     (or (instance? VBox element) (instance? HBox element))
@@ -229,7 +219,7 @@
 
     (instance? ImageView element)
     (when (not= (:src old-props) (:src new-props))
-      (.setImage ^ImageView element (javafx.scene.image.Image. ^String (:src new-props))))
+      (JavaFXUtils/imageViewSetSrc ^ImageView element (:src new-props)))
 
     (instance? Hyperlink element)
     (when (not= (:content old-props) (:content new-props))

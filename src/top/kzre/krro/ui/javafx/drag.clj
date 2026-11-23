@@ -33,7 +33,8 @@
 (defn setup-drag-source!
   "为节点设置拖拽源。"
   [node {:keys [content-fn transfer-modes on-drag-start on-drag-end]
-         :or   {transfer-modes [:move]}}]
+         :or   {transfer-modes [:move]}}
+   _target-key]
   (let [modes-array (transfer-modes->array transfer-modes)]
     (.setOnDragDetected node
                         (reify EventHandler
@@ -65,7 +66,8 @@
 
 (defn setup-drag-target!
   "为节点设置拖拽目标。"
-  [node {:keys [accept-fn on-drag-over on-drag-dropped]}]
+  [node {:keys [accept-fn on-drag-over on-drag-dropped]}
+   _target-key]
   (.setOnDragOver node
                   (when on-drag-over
                     (reify EventHandler

@@ -21,6 +21,7 @@
   (:import
     (javafx.application Platform)))
 
+
 (when variable/*debug*
   (System/setProperty "prism.verbose" "true"))
 
