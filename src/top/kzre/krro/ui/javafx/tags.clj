@@ -6,11 +6,10 @@
    双向绑定通过 getter（单向同步）和 setter/on-change（用户操作写回）实现，
    不再使用 ObservableValue 自动监听，确保单向数据流。"
   (:require
-   [top.kzre.krro.core.core :as krro]
-   [top.kzre.krro.ui.javafx.event :as event]
-   [top.kzre.krro.ui.javafx.util :as javafx.util]
-   [taoensso.timbre :as log]
-   [top.kzre.krro.core.window :as win])
+    [taoensso.timbre :as log]
+    [top.kzre.krro.core.core :as krro]
+    [top.kzre.krro.ui.javafx.event :as event]
+    [top.kzre.krro.ui.javafx.util :as javafx.util])
   (:import
     (java.util Collection)
     (javafx.scene Node)
@@ -34,7 +33,8 @@
       TextField
       ToolBar)
     (javafx.scene.image ImageView)
-    (javafx.scene.layout HBox VBox)
+    (javafx.scene.layout HBox StackPane VBox)
+    (top.kzre.jdom.fx ElementBox FxDOM FxElement)
     (top.kzre.krro.ui.javafx JavaFXUtils)))
 
 
@@ -212,6 +212,7 @@
       (.setFitWidth view (double width)))
     (when height
       (.setFitWidth view (double height)))
+    (.setPickOnBounds view true)
     (if (and width height)
       (.setPreserveRatio view false)
       (.setPreserveRatio view true))
@@ -222,8 +223,7 @@
 
 (defmethod create-element :radio-button [_ props f]
   (let [props' (polyfill-action props)
-        rb (RadioButton. (or (:content props') ""))
-        tk (target-key props')]
+        rb (RadioButton. (or (:content props') ""))]
     (when-let [v (:checked props')] (.setSelected rb (boolean v)))
     (build-events! rb props)
     (merge {:node rb}
@@ -235,3 +235,21 @@
     (build-events! hl props)
     {:node hl}))
 
+;; 让 实现兼容容器语义，不要去兼容 web css 语义
+(defmethod create-element :stack [_ props _]
+  (let [stack (StackPane.)]
+    (build-events! stack props)
+    {:node stack}))
+
+
+;; DOM 容器
+(defmethod create-element :dom [_ props _]
+  (let [dom (FxDOM.)]
+    (build-events! dom props)
+    {:node dom}))
+
+;; DOM 元素, DOM 节点直接返回 FxElement
+(defmethod create-element :div [_ props _]
+  (let [dom (ElementBox.)]
+    (build-events! dom props)
+    {:node (FxElement. dom)}))

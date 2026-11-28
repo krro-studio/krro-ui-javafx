@@ -6,6 +6,7 @@
 (def params {:template (tpl/create-template)
              :artifact "krro-ui-javafx"
              :compile-java? true
+             :java-version "17"
              :version "0.1.0"})
 
 (def kfxc-params

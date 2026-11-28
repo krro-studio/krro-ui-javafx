@@ -30,7 +30,8 @@
       TextArea
       TextField)
     (javafx.scene.image ImageView)
-    (javafx.scene.layout HBox VBox)
+    (javafx.scene.layout HBox StackPane VBox)
+    (top.kzre.jdom.fx FxElement)
     (top.kzre.krro.ui.javafx JavaFXUtils)))
 
 (defonce ^:private stylesheet-cache
@@ -86,21 +87,6 @@
                (string? location)       location
                :else                    nil)]
     (and (string? path) (str/ends-with? path ".edn"))))
-;
-;(defn- compile-edn-stylesheet
-;  "把 EDN 样式表 location 编译为 JavaFX CSS 字符串。
-;
-;   - 以 location 归一化后的 URI 作为 base-uri，支持相对 import；
-;   - 把自身加入 in-progress，检测自引用 / 循环 import；
-;   - 兄弟 import 由 loaded 去重（这里只传一次，单文件内部生效）。"
-;  [location]
-;  (let [base-uri (stylesheet/->uri (str location))
-;        edn      (stylesheet/load-stylesheet-edn base-uri)
-;        [expanded _] (stylesheet/expand-imports
-;                       edn {:base-uri    base-uri
-;                            :in-progress #{base-uri}})]
-;    ;; 已展开数据，compile-stylesheet 内部的单 arity expand-imports 是 no-op
-;    (javafx.stylesheet/compile-stylesheet expanded)))
 
 
 (defn- apply-stylesheets! [^Parent element new-styles]
@@ -128,10 +114,7 @@
     (let [classes (if (vector? class-val) class-val [class-val])]
       (.addAll ^Collection (.getStyleClass node) (map name classes)))))
 
-
-;; ── 属性 diff ──────────────────────────────────────
-(defn- attrs-diff! [element old-props new-props]
-  ;; 样式
+(defn diff-attrs* [element old-props new-props]
   (when (not= (:style old-props) (:style new-props))
     (if-let [style (:style new-props)]
       (set-style element style)
@@ -161,12 +144,23 @@
   (when (not= (:disabled old-props) (:disabled new-props))
     (.setDisable element (boolean (:disabled new-props))))
 
-  ;; 组件特定
+  ;; 组件特定,
   (cond
-    (or (instance? VBox element) (instance? HBox element))
+    ;;alignment-self 后面再说
+    (instance? VBox element)
     (let [new-alignment (:alignment new-props :top-left)]
       (when (not= (:alignment old-props) new-alignment)
-        (.setAlignment element (javafx.util/kw->pos new-alignment))))
+        (.setAlignment ^VBox element (javafx.util/kw->pos new-alignment))))
+
+    (instance? HBox element)
+    (let [new-alignment (:alignment new-props :top-left)]
+      (when (not= (:alignment old-props) new-alignment)
+        (.setAlignment ^HBox element (javafx.util/kw->pos new-alignment))))
+
+    (instance? StackPane element)
+    (let [new-alignment (:alignment new-props :top-left)]
+      (when (not= (:alignment old-props) new-alignment)
+        (.setAlignment ^StackPane element (javafx.util/kw->pos new-alignment))))
 
     (instance? Label element)
     (when (not= (:content old-props) (:content new-props))
@@ -229,6 +223,16 @@
     (when (not= (:content old-props) (:content new-props))
       (.setText ^MenuItem element (or (:content new-props) "")))))
 
+;; ── 属性 diff ──────────────────────────────────────
+(defn- diff-attrs! [element old-props new-props]
+  ;; 样式
+  (let [el
+        (cond
+          (instance? FxElement element)
+          (.getNode ^FxElement element)
+          :else element)]
+    (diff-attrs* el old-props new-props)))
+
 (defn- register-bindings!
   "注册项目绑定与 Frame 绑定。"
   [^Node node bind bindf frame]
@@ -258,7 +262,7 @@
       (if (map? result)
         (let [{:keys [node hooks binding frame-binding]} result]
           ;; 1. 应用静态属性（样式、拖拽、样式表等）
-          (attrs-diff! node {} props)
+          (diff-attrs! node {} props)
           ;; 2. 注册钩子
           (setup-hooks! vnode hooks)
           ;; 3. 注册绑定
@@ -266,14 +270,14 @@
           node)
         ;; 传统返回值（仅节点）
         (let [^Node node result]
-          (attrs-diff! node {} props)
+          (diff-attrs! node {} props)
           node))))
   (update-properties [_ element old-vnode new-vnode]
     (if (-> new-vnode proto/node-hooks :on-update)
       element
       (let [old-props (proto/node-props old-vnode)
             new-props (proto/node-props new-vnode)]
-        (attrs-diff! element old-props new-props))))
+        (diff-attrs! element old-props new-props))))
   (destroy-element [_ vnode f]
     (when-let [element (proto/node-element vnode)]
       (bind/unregister! element)
