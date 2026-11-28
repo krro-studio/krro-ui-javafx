@@ -9,30 +9,31 @@
    [top.kzre.krro.ui.core.protocol :as proto]
    [top.kzre.krro.ui.core.spec.stylesheet :as stylesheet]
    [top.kzre.krro.ui.javafx.renderer :as renderer]
+   [top.kzre.krro.ui.javafx.style :as style]
    [top.kzre.krro.ui.javafx.stylesheet :as javafx.stylesheet]
    [top.kzre.krro.ui.javafx.tags :as tags]
    [top.kzre.krro.ui.javafx.util :as javafx.util])
   (:import
-    (java.io File)
-    (java.net URI)
-    (java.util Collection)
-    (javafx.scene Node Parent)
-    (javafx.scene.control
-      Button
-      CheckBox
-      ComboBox
-      Hyperlink
-      Label
-      MenuItem
-      ProgressBar
-      RadioButton
-      Slider
-      TextArea
-      TextField)
-    (javafx.scene.image ImageView)
-    (javafx.scene.layout HBox StackPane VBox)
-    (top.kzre.jdom.fx FxElement)
-    (top.kzre.krro.ui.javafx JavaFXUtils)))
+   (java.io File)
+   (java.net URI)
+   (java.util Collection)
+   (javafx.scene Node Parent)
+   (javafx.scene.control
+    Button
+    CheckBox
+    ComboBox
+    Hyperlink
+    Label
+    MenuItem
+    ProgressBar
+    RadioButton
+    Slider
+    TextArea
+    TextField)
+   (javafx.scene.image ImageView)
+   (javafx.scene.layout HBox StackPane VBox)
+   (top.kzre.jdom.fx ElementBox FxElement)
+   (top.kzre.krro.ui.javafx JavaFXUtils)))
 
 (defonce ^:private stylesheet-cache
          ;; canonical-uri -> {:mtime long-or-nil, :url string}
@@ -88,7 +89,6 @@
                :else                    nil)]
     (and (string? path) (str/ends-with? path ".edn"))))
 
-
 (defn- apply-stylesheets! [^Parent element new-styles]
   (let [styles (.getStylesheets element)]
     (.clear styles)
@@ -101,13 +101,16 @@
           (catch Exception e
             (log/error e "Failed to load stylesheet" s)))))))
 
-;; ── 通用属性处理 ──────────────────────────────────────
-(defn- set-style [^Node node style-map]
-  (when style-map
-    (let [css-str (->> (for [[k v] style-map]
-                         (str "-fx-" (name k) ": " v ";"))
-                       (str/join " "))]
-      (.setStyle node css-str))))
+
+(defn- set-style! [^Node node style-map]
+  (let [dom-node? (instance? ElementBox node)
+        {:keys [css props]}
+        (style/process-styles style-map
+                              {:dom-node? dom-node?})
+        properties (.getProperties node)]
+    (.setStyle node css)
+    (doseq [[k v] props]
+      (.put properties k v))))
 
 (defn- set-class [^Node node class-val]
   (when class-val
@@ -117,7 +120,7 @@
 (defn diff-attrs* [element old-props new-props]
   (when (not= (:style old-props) (:style new-props))
     (if-let [style (:style new-props)]
-      (set-style element style)
+      (set-style! element style)
       (.setStyle element "")))
   ;; 类
   (when (not= (:class old-props) (:class new-props))

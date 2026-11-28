@@ -2,24 +2,39 @@
   "JavaFX 样式表编译器。将 EDN 样式描述编译为 CSS 字符串。"
   (:require
     [top.kzre.krro.ui.core.spec.stylesheet :as stylesheet]
-    [clojure.string :as str]))
+    [clojure.string :as str]
+    [top.kzre.krro.ui.javafx.style :as style]))
 
 ;; ── 内部辅助函数 ──────────────────────────────────
 
 (defn- compile-rule
   "编译单条规则及其子规则，返回 CSS 字符串。"
-  [rule parent-selector bindings ]
+  [rule parent-selector bindings]
   (let [{:keys [selector styles children]} rule
-        full-selector (if (and parent-selector (str/starts-with? selector "&"))
-                        (str parent-selector (subs selector 1))
-                        (if parent-selector
-                          (str parent-selector " " selector)
-                          selector))
-        resolved-styles (stylesheet/resolve-values bindings styles)
-        style-strs (map (fn [[k v]] (str  "-fx-" (name k) ":" v ";")) resolved-styles)
-        children-strs (map #(compile-rule % full-selector bindings ) children)]
-    (str full-selector "{" (str/join "" style-strs) "}"
-         (str/join "" children-strs))))
+
+        ;; 选择器解析
+        full-selector
+        (if (and parent-selector (str/starts-with? selector "&"))
+          (str parent-selector (subs selector 1))
+          (if parent-selector
+            (str parent-selector " " selector)
+            selector))
+
+        ;; 复用 process-styles
+        {:keys [css]}
+        (style/process-styles
+          (stylesheet/resolve-values bindings styles)
+          {:dom-node?  false
+           :force-css? true      ;; 样式表永远输出 CSS
+           :on-unknown :warn})
+
+        ;; 子规则
+        children-css
+        (->> children
+             (map #(compile-rule % full-selector bindings))
+             (str/join ""))]
+
+    (str full-selector "{" css "}" children-css)))
 
 ;; ── 公共 API ──────────────────────────────────
 
